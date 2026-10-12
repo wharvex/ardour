@@ -16,6 +16,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <iostream>
 #include <ytkmm/frame.h>
 #include <ytkmm/label.h>
 #include <ytkmm/stock.h>
@@ -147,6 +148,10 @@ PluginSetupDialog::setup_output_presets ()
 		_out_presets.add_menu_elem (MenuElem (string_compose (_("All (%1)"), preset_label (all)), sigc::bind (sigc::mem_fun (*this, &PluginSetupDialog::select_output_preset), all)));
 		ppc.erase (all);
 	}
+
+    std::cerr << "ppc size=" << ppc.size() << " values:";
+    for (const auto& n : ppc) std::cerr << ' ' << n;
+    std::cerr << '\n';
 
 	for (PluginOutputConfiguration::const_iterator i = ppc.begin () ; i != ppc.end (); ++i) {
 		assert (*i > 0);
