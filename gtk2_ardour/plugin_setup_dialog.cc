@@ -131,7 +131,7 @@ PluginSetupDialog::setup_output_presets ()
 		ppc.insert (16);
 		ppc.insert (24);
 		ppc.insert (32);
-		if (ppc.find (_cur_outputs.n_audio ()) == ppc.end ()) {
+		if (_cur_outputs.n_audio () > 0 && ppc.find (_cur_outputs.n_audio ()) == ppc.end ()) {
 			ppc.insert (_cur_outputs.n_audio ());
 		}
 	}
@@ -154,6 +154,7 @@ PluginSetupDialog::setup_output_presets ()
     std::cerr << '\n';
 
 	for (PluginOutputConfiguration::const_iterator i = ppc.begin () ; i != ppc.end (); ++i) {
+        // if (*i == 0) { continue; }
 		assert (*i > 0);
 		if (*i == n_audio) {
 			assert (have_matching_io);
