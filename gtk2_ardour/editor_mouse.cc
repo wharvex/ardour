@@ -510,6 +510,14 @@ Editor::button_selection (ArdourCanvas::Item* item, GdkEvent* event, ItemType it
 			}
 			break;
 
+		case VelocityBaseItem:
+			if (press && eff_mouse_mode != MouseDraw && op == SelectionSet) {
+				midi_action (&MidiRegionView::clear_note_selection);
+			}
+			break;
+
+		case VelocityItem:
+			[[fallthrough]];
 		case NoteItem:
 			if (press && event->button.button == 3) {
 				NoteBase* cnote = reinterpret_cast<NoteBase*> (item->get_data ("notebase"));
@@ -783,7 +791,8 @@ Editor::button_press_handler_1 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 			break;
 
 		case DropZoneItem:
-			/* fallthrough: allows starting a selectin from the dropzone */
+			/* allows starting a selectin from the dropzone */
+			[[fallthrough]];
 		case StreamItem:
 			/* in the past, we created a new midi region here, but perhaps that is best left to the Draw mode */
 			/* .. now we allow for rubberband selection (region gain) */
@@ -1294,6 +1303,114 @@ Editor::button_press_handler_2 (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 }
 
 bool
+Editor::button_press_handler_3 (ArdourCanvas::Item* item, GdkEvent* event, ItemType item_type)
+{
+	timepos_t where (canvas_event_time (event));
+
+	/* context menu events get handled here */
+	if (Keyboard::is_context_menu_event (&event->button) && !_drags->active ()) {
+
+		context_click_event = *event;
+
+		/* no matter which button pops up the context menu, tell the menu
+		   widget to use button 1 to drive menu selection.
+		*/
+
+		switch (item_type) {
+		case FadeInItem:
+		case FadeInHandleItem:
+		case FadeInTrimHandleItem:
+		case StartCrossFadeItem:
+			popup_xfade_in_context_menu (event->button.button, event->button.time, item, item_type);
+			break;
+
+		case FadeOutItem:
+		case FadeOutHandleItem:
+		case FadeOutTrimHandleItem:
+		case EndCrossFadeItem:
+			popup_xfade_out_context_menu (event->button.button, event->button.time, item, item_type);
+			break;
+
+		case LeftFrameHandle:
+		case RightFrameHandle:
+			break;
+
+		case StreamItem:
+			popup_track_context_menu (event->button.button, event->button.time, item_type, false);
+			break;
+
+		case RegionItem:
+		case RegionViewNameHighlight:
+		case RegionViewName:
+			popup_track_context_menu (event->button.button, event->button.time, item_type, false);
+			break;
+
+		case SelectionItem:
+			popup_track_context_menu (event->button.button, event->button.time, item_type, true);
+			break;
+
+		case AutomationTrackItem:
+			popup_track_context_menu (event->button.button, event->button.time, item_type, false);
+			break;
+
+		case MarkerBarItem:
+		case RangeMarkerBarItem:
+		case SectionMarkerBarItem:
+		case TempoBarItem:
+		case TempoCurveItem:
+		case MeterBarItem:
+		case VideoBarItem:
+		case TimecodeRulerItem:
+		case SamplesRulerItem:
+		case MinsecRulerItem:
+		case BBTRulerItem:
+		case SelectionMarkerItem:
+			snap_to (where, Temporal::RoundNearest, SnapToGrid_Scaled, false);
+			popup_ruler_menu (where, item_type);
+			break;
+
+		case MarkerItem:
+			marker_context_menu (&event->button, item);
+			break;
+
+		case SceneMarkerItem:
+			marker_context_menu (&event->button, item);
+			break;
+
+		case TempoMarkerItem:
+		case MeterMarkerItem:
+		case BBTMarkerItem:
+			tempo_map_marker_context_menu (&event->button, item);
+			break;
+
+		case CrossfadeViewItem:
+			popup_track_context_menu (event->button.button, event->button.time, item_type, false);
+			break;
+
+		case ControlPointItem:
+			popup_control_point_context_menu (item, event);
+			break;
+
+		case VelocityItem:
+			[[fallthrough]];
+		case NoteItem:
+			if (internal_editing()) {
+				popup_note_context_menu (item, event);
+			}
+			break;
+
+		case GridZoneItem:
+		default:
+			break;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+bool
 Editor::button_press_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemType item_type)
 {
 	if (event->type == GDK_2BUTTON_PRESS) {
@@ -1316,7 +1433,6 @@ Editor::button_press_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemTyp
 
 	if (!_drags->active () &&
 	    (Keyboard::is_delete_event (&event->button) ||
-	     Keyboard::is_context_menu_event (&event->button) ||
 	     Keyboard::is_edit_event (&event->button))) {
 
 		/* handled by button release */
@@ -1352,6 +1468,7 @@ Editor::button_press_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemTyp
 		break;
 
 	case 3:
+		return button_press_handler_3 (item, event, item_type);
 		break;
 
 	default:
@@ -1487,107 +1604,6 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 		return true;
 	}
 
-	/* context menu events get handled here */
-	if (Keyboard::is_context_menu_event (&event->button)) {
-
-		context_click_event = *event;
-
-		if (!_drags->active ()) {
-
-			/* no matter which button pops up the context menu, tell the menu
-			   widget to use button 1 to drive menu selection.
-			*/
-
-			switch (item_type) {
-			case FadeInItem:
-			case FadeInHandleItem:
-			case FadeInTrimHandleItem:
-			case StartCrossFadeItem:
-				popup_xfade_in_context_menu (1, event->button.time, item, item_type);
-				break;
-
-			case FadeOutItem:
-			case FadeOutHandleItem:
-			case FadeOutTrimHandleItem:
-			case EndCrossFadeItem:
-				popup_xfade_out_context_menu (1, event->button.time, item, item_type);
-				break;
-
-			case LeftFrameHandle:
-			case RightFrameHandle:
-				break;
-
-			case StreamItem:
-				popup_track_context_menu (1, event->button.time, item_type, false);
-				break;
-
-			case RegionItem:
-			case RegionViewNameHighlight:
-			case RegionViewName:
-				popup_track_context_menu (1, event->button.time, item_type, false);
-				break;
-
-			case SelectionItem:
-				popup_track_context_menu (1, event->button.time, item_type, true);
-				break;
-
-			case AutomationTrackItem:
-				popup_track_context_menu (1, event->button.time, item_type, false);
-				break;
-
-			case MarkerBarItem:
-			case RangeMarkerBarItem:
-			case SectionMarkerBarItem:
-			case TempoBarItem:
-			case TempoCurveItem:
-			case MeterBarItem:
-			case VideoBarItem:
-			case TimecodeRulerItem:
-			case SamplesRulerItem:
-			case MinsecRulerItem:
-			case BBTRulerItem:
-			case SelectionMarkerItem:
-				snap_to (where, Temporal::RoundNearest, SnapToGrid_Scaled, false);
-				popup_ruler_menu (where, item_type);
-				break;
-
-			case MarkerItem:
-				marker_context_menu (&event->button, item);
-				break;
-
-			case SceneMarkerItem:
-				marker_context_menu (&event->button, item);
-				break;
-
-			case TempoMarkerItem:
-			case MeterMarkerItem:
-			case BBTMarkerItem:
-				tempo_map_marker_context_menu (&event->button, item);
-				break;
-
-			case CrossfadeViewItem:
-				popup_track_context_menu (1, event->button.time, item_type, false);
-				break;
-
-			case ControlPointItem:
-				popup_control_point_context_menu (item, event);
-				break;
-
-			case NoteItem:
-				if (internal_editing()) {
-					popup_note_context_menu (item, event);
-				}
-				break;
-
-			case GridZoneItem:
-			default:
-				break;
-			}
-
-			return true;
-		}
-	}
-
 	/* delete events get handled here */
 
 	Editing::MouseMode const eff = effective_mouse_mode ();
@@ -1689,6 +1705,8 @@ Editor::button_release_handler (ArdourCanvas::Item* item, GdkEvent* event, ItemT
 		}
 
 		switch (eff) {
+		case MouseContent:
+			[[fallthrough]];
 		case MouseDraw:
 			switch (item_type) {
 			case RegionItem:
@@ -2043,69 +2061,6 @@ Editor::cancel_time_selection ()
 	}
 	selection->time.clear ();
 	clicked_selection = 0;
-}
-
-void
-Editor::point_trim (GdkEvent* event, timepos_t const & new_bound)
-{
-	RegionView* rv = clicked_regionview;
-
-	/* Choose action dependent on which button was pressed */
-	switch (event->button.button) {
-	case 1:
-		begin_reversible_command (_("start point trim"));
-
-		if (selection->selected (rv)) {
-			for (list<RegionView*>::const_iterator i = selection->regions.by_layer().begin();
-			     i != selection->regions.by_layer().end(); ++i)
-			{
-				if (!(*i)->region()->locked()) {
-					(*i)->region()->clear_changes ();
-					(*i)->region()->trim_front (new_bound);
-					_session->add_command(new StatefulDiffCommand ((*i)->region()));
-				}
-			}
-
-		} else {
-			if (!rv->region()->locked()) {
-				rv->region()->clear_changes ();
-				rv->region()->trim_front (new_bound);
-				_session->add_command(new StatefulDiffCommand (rv->region()));
-			}
-		}
-
-		commit_reversible_command();
-
-		break;
-	case 2:
-		begin_reversible_command (_("end point trim"));
-
-		if (selection->selected (rv)) {
-
-			for (list<RegionView*>::const_iterator i = selection->regions.by_layer().begin(); i != selection->regions.by_layer().end(); ++i)
-			{
-				if (!(*i)->region()->locked()) {
-					(*i)->region()->clear_changes();
-					(*i)->region()->trim_end (new_bound);
-					_session->add_command(new StatefulDiffCommand ((*i)->region()));
-				}
-			}
-
-		} else {
-
-			if (!rv->region()->locked()) {
-				rv->region()->clear_changes ();
-				rv->region()->trim_end (new_bound);
-				_session->add_command (new StatefulDiffCommand (rv->region()));
-			}
-		}
-
-		commit_reversible_command();
-
-		break;
-	default:
-		break;
-	}
 }
 
 void
@@ -2617,7 +2572,13 @@ Editor::line_drag_click (GdkEvent* event, timepos_t const & where, double y)
 
 	if ((atv = dynamic_cast<AutomationTimeAxisView*> (clicked_axisview)) != 0) {
 
-		atv->add_automation_event (event, where, y, false);
+		AutomationRegionView* arv;
+
+		if ((arv = dynamic_cast<AutomationRegionView*> (clicked_regionview)) != 0) {
+			arv->add_automation_event (event);
+		} else {
+			atv->add_automation_event (event, where, y, false);
+		}
 
 	} else if (dynamic_cast<AudioTimeAxisView*> (clicked_axisview) != 0) {
 
